@@ -20,7 +20,45 @@ client = genai.Client(
 )
 
 
-MODEL = "gemini-3.8-flash"
+MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash"
+]
+
+
+def generate_response(contents):
+
+    last_error = None
+
+    for model in MODELS:
+
+        for attempt in range(3):
+
+            try:
+
+                response = client.models.generate_content(
+                    model=model,
+                    contents=contents
+                )
+
+                return response
+
+            except Exception as e:
+
+                last_error = e
+
+                if "503" in str(e):
+
+                    if attempt < 2:
+                        time.sleep(5 * (2 ** attempt))
+                    else:
+                        break
+
+                else:
+
+                    raise e
+
+    raise last_error
 
 
 st.title("📚 AI Snap & Study")
@@ -50,45 +88,20 @@ if uploaded_file is not None:
 
     if st.button("🔍 Explain Image"):
 
-        with st.spinner("Gemini is analyzing the image..."):
+        with st.spinner(
+            "Gemini is analyzing the image..."
+        ):
 
             try:
 
-                response = None
+                response = generate_response([
+                    SYSTEM_PROMPT,
+                    image
+                ])
 
-                for attempt in range(5):
+                st.session_state["explanation"] = response.text
 
-                    try:
-
-                        response = client.models.generate_content(
-                            model=MODEL,
-                            contents=[
-                                SYSTEM_PROMPT,
-                                image
-                            ]
-                        )
-
-                        break
-
-                    except Exception as e:
-
-                        if "503" in str(e) and attempt < 4:
-
-                            wait_time = 10 * (2 ** attempt)
-
-                            time.sleep(wait_time)
-
-                        else:
-
-                            raise e
-
-
-                if response is not None:
-
-                    st.session_state["explanation"] = response.text
-
-                    st.session_state["chat_history"] = []
-
+                st.session_state["chat_history"] = []
 
             except Exception as e:
 
@@ -235,49 +248,22 @@ if "explanation" in st.session_state:
                         )
 
 
-                    response = None
+                    response = generate_response(
+                        conversation
+                    )
 
 
-                    for attempt in range(5):
+                    answer = response.text
 
-                        try:
-
-                            response = client.models.generate_content(
-                                model=MODEL,
-                                contents=conversation
-                            )
-
-                            break
+                    st.markdown(answer)
 
 
-                        except Exception as e:
-
-                            if "503" in str(e) and attempt < 4:
-
-                                wait_time = 10 * (2 ** attempt)
-
-                                time.sleep(wait_time)
-
-                            else:
-
-                                raise e
-
-
-                    if response is not None:
-
-                        answer = response.text
-
-                        st.markdown(
-                            answer
-                        )
-
-
-                        st.session_state[
-                            "chat_history"
-                        ].append({
-                            "role": "assistant",
-                            "content": answer
-                        })
+                    st.session_state[
+                        "chat_history"
+                    ].append({
+                        "role": "assistant",
+                        "content": answer
+                    })
 
 
                 except Exception as e:
