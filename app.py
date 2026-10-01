@@ -60,6 +60,33 @@ def generate_response(contents):
     raise last_error
 
 
+def send_email(email_address, content, subject):
+
+    message = MIMEText(
+        content,
+        "plain"
+    )
+
+    message["Subject"] = subject
+
+    message["From"] = st.secrets["GMAIL_ADDRESS"]
+
+    message["To"] = email_address
+
+
+    with smtplib.SMTP_SSL(
+        "smtp.gmail.com",
+        465
+    ) as server:
+
+        server.login(
+            st.secrets["GMAIL_ADDRESS"],
+            st.secrets["GMAIL_APP_PASSWORD"]
+        )
+
+        server.send_message(message)
+
+
 st.title("📚 AI Snap & Study")
 
 st.write(
@@ -120,55 +147,32 @@ if "explanation" in st.session_state:
 
     st.divider()
 
-
-    st.subheader("📧 Send Explanation by Email")
+    st.subheader("📧 Email Explanation")
 
     email_address = st.text_input(
-        "Enter email address"
+        "Enter email address",
+        key="initial_email"
     )
 
 
-    if st.button("📧 Send Email"):
+    if st.button(
+        "📧 Send Explanation by Email",
+        key="send_initial_email"
+    ):
 
         if email_address:
 
             try:
 
-                message = MIMEText(
+                send_email(
+                    email_address,
                     st.session_state["explanation"],
-                    "plain"
-                )
-
-                message["Subject"] = (
                     "AI Snap & Study - Explanation"
                 )
-
-                message["From"] = (
-                    st.secrets["GMAIL_ADDRESS"]
-                )
-
-                message["To"] = email_address
-
-
-                with smtplib.SMTP_SSL(
-                    "smtp.gmail.com",
-                    465
-                ) as server:
-
-                    server.login(
-                        st.secrets["GMAIL_ADDRESS"],
-                        st.secrets["GMAIL_APP_PASSWORD"]
-                    )
-
-                    server.send_message(
-                        message
-                    )
-
 
                 st.success(
                     "✅ Explanation sent successfully!"
                 )
-
 
             except Exception as e:
 
@@ -185,13 +189,14 @@ if "explanation" in st.session_state:
 
     st.divider()
 
-
     st.subheader("💬 Ask AI")
 
 
-    for message in st.session_state.get(
-        "chat_history",
-        []
+    for i, message in enumerate(
+        st.session_state.get(
+            "chat_history",
+            []
+        )
     ):
 
         with st.chat_message(
@@ -201,6 +206,48 @@ if "explanation" in st.session_state:
             st.markdown(
                 message["content"]
             )
+
+
+            if message["role"] == "assistant":
+
+                email_key = f"email_{i}"
+
+                email_address = st.text_input(
+                    "Enter email address",
+                    key=f"address_{i}"
+                )
+
+
+                if st.button(
+                    "📧 Send This Answer by Email",
+                    key=email_key
+                ):
+
+                    if email_address:
+
+                        try:
+
+                            send_email(
+                                email_address,
+                                message["content"],
+                                "AI Snap & Study - AI Answer"
+                            )
+
+                            st.success(
+                                "✅ Answer sent successfully!"
+                            )
+
+                        except Exception as e:
+
+                            st.error(
+                                f"Email error: {e}"
+                            )
+
+                    else:
+
+                        st.warning(
+                            "Please enter an email address."
+                        )
 
 
     user_question = st.chat_input(
@@ -254,7 +301,9 @@ if "explanation" in st.session_state:
 
                     answer = response.text
 
-                    st.markdown(answer)
+                    st.markdown(
+                        answer
+                    )
 
 
                     st.session_state[
